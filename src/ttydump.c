@@ -397,6 +397,8 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 				MIN_BAUD_RATE,
 				MAX_BAUD_RATE
 			);
+			print_usage();
+			return -1;
 		}
 	} else {
 		opt->val_b = DEF_BAUD_RATE;
