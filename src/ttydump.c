@@ -165,20 +165,33 @@ void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
 	static uint8_t last_char = 0;
 	static uint8_t byte_count = 0;
 	
+	//	Clear screen after newline if single line mode is enabled
+	if (opt->opt_s && last_char == '\n') {
+		fprintf(stderr, ESC_CLEAR_OUTPUT);
+	}
+	
 	//	If printable, print character, otherwise print escaped
 	if ((isprint(*p) || iscntrl(*p)) && *p != '\\') {
-		//	If last character was non-printable, start a new line
+		//	If last character was non-printable, start a new line or clear the screen
 		if ((!isprint(last_char) && !iscntrl(last_char)) || last_char == '\\') {
-			fprintf(stderr, "\n");
+			if (opt->opt_s) {
+				fprintf(stderr, ESC_CLEAR_OUTPUT);
+			} else {
+				fprintf(stderr, "\n");
+			}
 		}
 		//	Print the printable character
 		fprintf(stderr, "%c", *p);
 		//	Reset non-printable byte count if we get a printable character
 		byte_count = 0;
 	} else {
-		//	Print newline at the start of a non-printable character sequence
+		//	Print newline or clear screen at the start of a non-printable character sequence
 		if (byte_count == 0) {
-			fprintf(stderr, "\n");
+			if (opt->opt_s) {
+				fprintf(stderr, ESC_CLEAR_OUTPUT);
+			} else {
+				fprintf(stderr, "\n");
+			}
 		}
 		//	Print non-printable byte based on options
 		if (opt->opt_c) {
@@ -206,11 +219,6 @@ void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
 		if (byte_count >= opt->val_w) {
 			byte_count = 0;
 		}
-	}
-	
-	//	Clear screen on newline if single line mode is enabled
-	if (opt->opt_s && last_char == '\n') {
-		fprintf(stderr, ESC_CLEAR_OUTPUT);
 	}
 	
 	//	Save character for comparison next function call
