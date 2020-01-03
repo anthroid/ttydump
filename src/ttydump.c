@@ -1,24 +1,25 @@
-//	Read bytes from a specified serial port (/dev/tty*, /dev/cu.*)
+//	Displays bytes read from a specified serial port in various output formats
 //	Optional color-coded output
-//	Optional MIDI-parsed output
+//	Optional MIDI packet parsing
+//	Optional ASCII character output
+//	Optional single-line output
 //	Optional raw binary output to file
-//	gcc <filename>.c -o ./bin/<filename>
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/file.h>
 
 //	Global constants
 #define RX_BUFFER_SIZE 255
-#define MIN_BAUD_RATE 50
 #define DEF_BAUD_RATE 115200
-#define MAX_BAUD_RATE 921600
 #define MIN_COLUMN_WIDTH 1
 #define DEF_COLUMN_WIDTH 8
 #define MAX_COLUMN_WIDTH 128
@@ -35,7 +36,52 @@
 #define ESC_COLOR_RESET "\033[0m"
 #define ESC_CLEAR_OUTPUT "\e[1;1H\e[2J"
 
-//	Application context
+//	Convert baud rate to platform-defined constant
+int convert_baud_rate(int rate) {
+	switch (rate) {
+		case 50:		return B50;
+		case 75:		return B75;
+		case 110:		return B110;
+		case 134:		return B134;
+		case 150:		return B150;
+		case 200:		return B200;
+		case 300:		return B300;
+		case 600:		return B600;
+		case 1200:		return B1200;
+		case 1800:		return B1800;
+		case 2400:		return B2400;
+		case 4800:		return B4800;
+		case 9600:		return B9600;
+		case 19200:		return B19200;
+		case 38400:		return B38400;
+		case 57600:		return B57600;
+		case 115200:	return B115200;
+		case 230400:	return B230400;
+#if (defined(__APPLE__) && !defined(_POSIX_C_SOURCE)) || defined(_DARWIN_C_SOURCE)
+		case 7200:		return B7200;
+		case 14400:		return B14400;
+		case 28800:		return B28800;
+		case 76800:		return B76800;
+#endif  /* ((__APPLE__ && !_POSIX_C_SOURCE) || _DARWIN_C_SOURCE) */
+#if (defined(__linux__) && defined(__ASM_GENERIC_POSIX_TYPES_H))
+		case 460800:	return B460800;
+		case 500000:	return B500000;
+		case 576000:	return B576000;
+		case 921600:	return B921600;
+		case 1000000:	return B1000000;
+		case 1152000:	return B1152000;
+		case 1500000:	return B1500000;
+		case 2000000:	return B2000000;
+		case 2500000:	return B2500000;
+		case 3000000:	return B3000000;
+		case 3500000:	return B3500000;
+		case 4000000:	return B4000000;
+#endif	/* (__linux__) && (__ASM_GENERIC_POSIX_TYPES_H) */
+		default:		return 0;
+	}
+}
+
+//	Application context structure type
 typedef struct {
 	FILE *fd;
 	int tty;
@@ -52,19 +98,17 @@ typedef struct {
 void print_usage(void) {
 	printf(
 		"Usage:\n"
-		"-p  Device path         (required, /dev/cu.usbserial-*)\n"
-		"-b  Baud rate           (optional, %d-%d, default: %d)\n"
+		"-p  Device path         (required, example: /dev/cu.usbserial*)\n"
+		"-b  Baud rate           (optional, default: %d)\n"
 		"-o  Output filename     (optional, binary output file path)\n"
+		"-w  Column width        (optional, %d-%d, default: %d bytes)\n"
 		"-s  Single line output  (optional, default: off)\n"
 		"-c  Color output        (optional, default: on)\n"
 		"-d  Decimal output      (optional, default: off)\n"
 		"-z  Zero prefix output  (optional, default: off)\n"
-		"-w  Column width        (optional, %d-%d, default: %d bytes)\n"
 		"-a  ASCII output format\n"
 		"-m  MIDI output format\n"
 		"-h  Show command help\n",
-		MIN_BAUD_RATE,
-		MAX_BAUD_RATE,
 		DEF_BAUD_RATE,
 		MIN_COLUMN_WIDTH,
 		MAX_COLUMN_WIDTH,
@@ -302,7 +346,7 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 				break;
 			case 'h':
 				print_usage();
-				return -1;
+				return 0;
 			case 'p':
 				opt->opt_p = 1;
 				opt->val_p = strdup(optarg);
@@ -397,19 +441,18 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 	
 	//	Validate baud rate if specified, otherwise set default
 	if (opt->opt_b) {
-		if (opt->val_b < MIN_BAUD_RATE || opt->val_b > MAX_BAUD_RATE) {
+		opt->val_b = convert_baud_rate(opt->val_b);
+		if (!opt->val_b) {
 			fprintf(stderr,
-				"%sError%s: '-b' option (baud rate) is out of acceptable range (%d-%d)\n",
+				"%sError%s: Unsupported baud rate '-b'\n",
 				ESC_COLOR_MAGENTA,
-				ESC_COLOR_RESET,
-				MIN_BAUD_RATE,
-				MAX_BAUD_RATE
+				ESC_COLOR_RESET
 			);
 			print_usage();
 			return -1;
 		}
 	} else {
-		opt->val_b = DEF_BAUD_RATE;
+		opt->val_b = convert_baud_rate(DEF_BAUD_RATE);
 	}
 	
 	//	Set default column width for raw and ASCII output
