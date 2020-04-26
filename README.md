@@ -23,7 +23,7 @@ Argument | Option | Comment
 
 * Serial port or usb-serial adapter
 * Unix/Linux-based operating system with `/dev/cu.*` or `/dev/tty.*`
-* `gcc`, `libc`, and a C compiler
+* `gcc` & `libc` (or similar)
 * Optional: Color-enabled terminal emulator
 
 ## Compiling
@@ -35,10 +35,11 @@ $ gcc ./src/ttydump.c -o ./bin/ttydump
 
 ## Installing
 
-Copy the executable to a location in your `$PATH`, for example:
+Copy or symlink the executable to a location in your `$PATH`, for example:
 
 ```
 $ cp ./bin/ttydump /usr/local/bin/
+$ ln -s ./bin/ttydump /usr/local/bin/ttydump
 ```
 
 ## Examples
@@ -66,10 +67,11 @@ $ ttydump -p /dev/cu.usbserial-DEADA55 -o ~/test/file.out
 
 ## Notes
 
-* I have not tested extensively on any platforms other than macOS 10.12, macOS 10.14, and Ubuntu 18.04. Nonetheless, no special or OS-specific functionality is used (other than the required platform-specific baud rate defines), and there are no dependencies outside of the standard C library, so it should hopefully compile and run.
+* I have not tested extensively on any platforms other than macOS 10.12, macOS 10.14, and Ubuntu 18.04. Nonetheless, no special or OS-specific functionality is used (to my knowledge, other than the required platform-specific baud rate defines), and there are no dependencies outside of the standard C library, so it should hopefully compile and run.
 
-* If you find a problem on *one of the above platforms*, please report it. If you find a problem on *another platform*, please fix it yourself. Do not bother reporting a problem on an unsupported platform without also submitting a fix. This is just a small utility I use daily when developing at home, and I am not interested in convoluting it to make it run on your microwave, or preventing Elliot Alderson from hacking into my FTDI cable. If this is your thing, by all means, clone it, rename it, and do as you please, or better yet, write your own.
+* If you find a problem on *one of the above platforms*, please report it.
 
 * The program uses an advisory lock mechanism, `flock()`, on the opened serial device, but unless this is also implemented in other utilities you are using (for example, `screen`), multiple processes may be able to open the device simultaneously, which can cause strange behavior. This is not unique to this utility.
 
-* On Linux (and possibly others), make sure your user is a member of the group that owns the serial tty device (this is the `dialout` group by default on Ubuntu). You can add yourself to it with the following command: `sudo gpasswd --add ${USER} dialout`
+* On Linux (and possibly others), make sure your user is a member of the group that owns the serial tty device (this is the `dialout` group by default on Ubuntu for example). You can add yourself to it with the following command: `sudo gpasswd --add ${USER} dialout`
+
