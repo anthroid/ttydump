@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -35,6 +36,27 @@
 #define ESC_COLOR_MIDI_AT "\033[94m"
 #define ESC_COLOR_RESET "\033[0m"
 #define ESC_CLEAR_OUTPUT "\e[1;1H\e[2J"
+#define NANOSECONDS_PER_SECOND ((long)(1000000000l))
+
+//	Subtract two timespec structures (sec, ms)
+void timespec_sub(struct timespec *start, struct timespec *end,
+	struct timespec *result) {
+	if (end->tv_nsec > start->tv_nsec) {
+		result->tv_nsec = end->tv_nsec - start->tv_nsec;
+		result->tv_sec = end->tv_sec - start->tv_sec;
+	} else if (end->tv_nsec < start->tv_nsec) {
+		result->tv_nsec = NANOSECONDS_PER_SECOND - (start->tv_nsec - end->tv_nsec);
+		result->tv_sec = end->tv_sec - start->tv_sec - 1;
+	} else {
+		result->tv_nsec = 0;
+		result->tv_sec = end->tv_sec - start->tv_sec;
+	}
+}
+
+//	Convert a struct timespec to a double in seconds
+double timespec_dec(struct timespec *t) {
+	return (double)(t->tv_sec + ((double)t->tv_nsec / (double)NANOSECONDS_PER_SECOND));
+}
 
 //	Convert baud rate to platform-defined constant
 int convert_baud_rate(int rate) {
@@ -57,12 +79,14 @@ int convert_baud_rate(int rate) {
 		case 57600:		return B57600;
 		case 115200:	return B115200;
 		case 230400:	return B230400;
+		
 #if (defined(__APPLE__) && !defined(_POSIX_C_SOURCE)) || defined(_DARWIN_C_SOURCE)
 		case 7200:		return B7200;
 		case 14400:		return B14400;
 		case 28800:		return B28800;
 		case 76800:		return B76800;
 #endif  /* ((__APPLE__ && !_POSIX_C_SOURCE) || _DARWIN_C_SOURCE) */
+
 #if (defined(__linux__) && defined(__ASM_GENERIC_POSIX_TYPES_H))
 		case 460800:	return B460800;
 		case 500000:	return B500000;
@@ -77,6 +101,7 @@ int convert_baud_rate(int rate) {
 		case 3500000:	return B3500000;
 		case 4000000:	return B4000000;
 #endif	/* (__linux__) && (__ASM_GENERIC_POSIX_TYPES_H) */
+
 		default:		return 0;
 	}
 }
@@ -85,11 +110,12 @@ int convert_baud_rate(int rate) {
 typedef struct {
 	FILE *fd;
 	int tty;
+	struct timespec ts;
 } app_context_t;
 
 //	Command line options
 typedef struct {
-	uint8_t opt_p, opt_o, opt_w, opt_s, opt_c, opt_d, opt_z, opt_a, opt_m, opt_b;
+	uint8_t opt_p, opt_o, opt_w, opt_s, opt_c, opt_d, opt_z, opt_t, opt_f, opt_a, opt_m, opt_b;
 	char *val_p, *val_o;
 	uint8_t val_w;
 	uint32_t val_b;
@@ -98,14 +124,16 @@ typedef struct {
 void print_usage(void) {
 	printf(
 		"Usage:\n"
-		"-p  Device path         (required, example: /dev/cu.usbserial*)\n"
-		"-b  Baud rate           (optional, default: %d)\n"
-		"-o  Output filename     (optional, binary output file path)\n"
-		"-w  Column width        (optional, %d-%d, default: %d bytes)\n"
-		"-s  Single line output  (optional, default: off)\n"
-		"-c  Color output        (optional, default: on)\n"
-		"-d  Decimal output      (optional, default: off)\n"
-		"-z  Zero prefix output  (optional, default: off)\n"
+		"-p  Device path           (required, example: /dev/cu.usbserial*)\n"
+		"-b  Baud rate             (optional, default: %d)\n"
+		"-o  Output filename       (optional, binary output file path)\n"
+		"-w  Column width          (optional, %d-%d, default: %d bytes)\n"
+		"-s  Single line output    (optional, default: off)\n"
+		"-c  Color output          (optional, default: on)\n"
+		"-d  Decimal output        (optional, default: off)\n"
+		"-z  Zero prefix output    (optional, default: off)\n"
+		"-t  Show timestamp        (optional, default: off)\n"
+		"-f  Show time difference  (optional, default: off)\n"
 		"-a  ASCII output format\n"
 		"-m  MIDI output format\n"
 		"-h  Show command help\n",
@@ -127,6 +155,8 @@ void print_options(cmd_options_t *opt) {
 		"-c: %d\n"
 		"-d: %d\n"
 		"-z: %d\n"
+		"-t: %d\n"
+		"-f: %d\n"
 		"-a: %d\n"
 		"-m: %d\n",
 		opt->opt_p, (opt->opt_p) ? opt->val_p : "(null)",
@@ -137,12 +167,36 @@ void print_options(cmd_options_t *opt) {
 		opt->opt_c,
 		opt->opt_d,
 		opt->opt_z,
+		opt->opt_t,
+		opt->opt_f,
 		opt->opt_a,
 		opt->opt_m
 	);
 }
 
-void print_byte_midi(uint8_t *p, cmd_options_t *opt) {
+void print_timestamp(app_context_t *app, cmd_options_t *opt) {
+	//	Read the current system time
+	struct timespec ts, td;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	//	Print the current timestamp
+	if (opt->opt_t) {
+		fprintf(stderr, "%ld: ", ts.tv_sec * NANOSECONDS_PER_SECOND + ts.tv_nsec);
+	}
+	//	Print the time in seconds difference since the last timestamp
+	if (opt->opt_f) {
+		if (app->ts.tv_sec == 0 && app->ts.tv_nsec == 0) {
+			app->ts.tv_sec = ts.tv_sec;
+			app->ts.tv_nsec = ts.tv_nsec;
+		}
+		timespec_sub(&app->ts, &ts, &td);
+		fprintf(stderr, "%.6f: ", timespec_dec(&td));
+	}
+	//	Store the current timestamp back to the application context
+	app->ts.tv_sec = ts.tv_sec;
+	app->ts.tv_nsec = ts.tv_nsec;
+}
+
+void print_byte_midi(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	//	Determine if this is a status byte
 	if (*p & 0x80) {
 		//	If so, start a new line or clear output
@@ -150,6 +204,10 @@ void print_byte_midi(uint8_t *p, cmd_options_t *opt) {
 			fprintf(stderr, ESC_CLEAR_OUTPUT);
 		} else {
 			fprintf(stderr, "\n");
+		}
+		//	Print a timestamp and/or time difference if either option is enabled
+		if (opt->opt_t || opt->opt_f) {
+			print_timestamp(app, opt);
 		}
 	}
 	
@@ -205,13 +263,18 @@ void print_byte_midi(uint8_t *p, cmd_options_t *opt) {
 	}
 }
 
-void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
+void print_byte_ascii(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	static uint8_t last_char = 0;
 	static uint8_t byte_count = 0;
 	
 	//	Clear screen after newline if single line mode is enabled
 	if (opt->opt_s && last_char == '\n') {
 		fprintf(stderr, ESC_CLEAR_OUTPUT);
+	}
+	
+	//	Print a timestamp and/or time difference if either option is enabled
+	if ((opt->opt_t || opt->opt_f) && (last_char == '\n' || last_char == 0)) {
+		print_timestamp(app, opt);
 	}
 	
 	//	If printable, print character, otherwise print escaped
@@ -222,6 +285,10 @@ void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
 				fprintf(stderr, ESC_CLEAR_OUTPUT);
 			} else {
 				fprintf(stderr, "\n");
+			}
+			//	Print a timestamp and/or time difference if either option is enabled
+			if (opt->opt_t || opt->opt_f) {
+				print_timestamp(app, opt);
 			}
 		}
 		//	Print the printable character
@@ -235,6 +302,10 @@ void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
 				fprintf(stderr, ESC_CLEAR_OUTPUT);
 			} else {
 				fprintf(stderr, "\n");
+			}
+			//	Print a timestamp and/or time difference if either option is enabled
+			if (opt->opt_t || opt->opt_f) {
+				print_timestamp(app, opt);
 			}
 		}
 		//	Print non-printable byte based on options
@@ -269,7 +340,7 @@ void print_byte_ascii(uint8_t *p, cmd_options_t *opt) {
 	last_char = *p;
 }
 
-void print_byte_raw(uint8_t *p, cmd_options_t *opt) {
+void print_byte_raw(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	static uint8_t byte_count = 0;
 	
 	//	Determine if this is a new line
@@ -279,6 +350,10 @@ void print_byte_raw(uint8_t *p, cmd_options_t *opt) {
 			fprintf(stderr, ESC_CLEAR_OUTPUT);
 		} else {
 			fprintf(stderr, "\n");
+		}
+		//	Print a timestamp and/or time difference if either option is enabled
+		if (opt->opt_t || opt->opt_f) {
+			print_timestamp(app, opt);
 		}
 	}
 	
@@ -324,7 +399,7 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 	memset((void*)opt, 0, sizeof(cmd_options_t));
 	
 	//	Parse command line options
-	while ((i = getopt(argc, argv, "scdzamhp:b:o:w:")) != -1) {
+	while ((i = getopt(argc, argv, "scdztfamhp:b:o:w:")) != -1) {
 		switch (i) {
 			case 's':
 				opt->opt_s = 1;
@@ -337,6 +412,12 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 				break;
 			case 'z':
 				opt->opt_z = 1;
+				break;
+			case 't':
+				opt->opt_t = 1;
+				break;
+			case 'f':
+				opt->opt_f = 1;
 				break;
 			case 'a':
 				opt->opt_a = 1;
@@ -591,9 +672,9 @@ int main(int argc, char **argv) {
 			while (1) {
 				
 				//	Print in specified output format
-				if (opt.opt_m) print_byte_midi(p, &opt);
-				else if (opt.opt_a) print_byte_ascii(p, &opt);
-				else print_byte_raw(p, &opt);
+				if (opt.opt_m) print_byte_midi(p, &app, &opt);
+				else if (opt.opt_a) print_byte_ascii(p, &app, &opt);
+				else print_byte_raw(p, &app, &opt);
 				
 				//	Optionally write binary data to output file
 				if (opt.opt_o && app.fd) {

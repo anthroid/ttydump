@@ -15,6 +15,8 @@ Argument | Option | Comment
 `-c` | Color output | *Optional*, default: `on`
 `-d` | Decimal output | *Optional*, default: `off`
 `-z` | Zero prefix output | *Optional*, default: `off`
+`-t` | Show timestamp | *Optional*, default: `off`
+`-f` | Show time difference | *Optional*, default: `off`
 `-a` | ASCII output format | Output ASCII printable characters + `\x00` style escaped bytes for non-printables
 `-m` | MIDI output format | Interpret and display received bytes as MIDI packets
 `-h` | Show command help | Show this list without opening a connection
