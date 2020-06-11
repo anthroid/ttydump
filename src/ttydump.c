@@ -179,7 +179,7 @@ void print_options(cmd_options_t *opt) {
 }
 
 void print_timestamp(app_context_t *app, cmd_options_t *opt) {
-	//	Read thx current system time
+	//	Read the current system time
 	struct timespec ts, td;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	//	Print the current timestamp
@@ -195,7 +195,8 @@ void print_timestamp(app_context_t *app, cmd_options_t *opt) {
 		timespec_sub(&app->ts, &ts, &td);
 		if (opt->opt_n) {
 			fprintf(stderr, "+%012ld: ", td.tv_sec * NANOSECONDS_PER_SECOND + td.tv_nsec);
-		} else if (opt->opt_s) {
+		}
+		if (opt->opt_s) {
 			fprintf(stderr, "%.6f: ", timespec_dec(&td));
 		}
 	}
