@@ -11,12 +11,13 @@ Argument | Option | Comment
 `-b <baud>` | Baud rate | *Optional*, default: `115200`
 `-o <filename>` | Output filename | *Optional*, binary output file path, example: `~/path/to/file.out`
 `-w <columns>` | Column width | *Optional*, `1-128`, default: `8 bytes`
-`-s` | Single line output | *Optional*, default: `off`
+`-x` | Single line output | *Optional*, default: `off`
 `-c` | Color output | *Optional*, default: `on`
 `-d` | Decimal output | *Optional*, default: `off`
 `-z` | Zero prefix output | *Optional*, default: `off`
 `-t` | Show timestamp | *Optional*, default: `off`
-`-f` | Show time difference | *Optional*, default: `off`
+`-n` | Show time difference (ns) | *Optional*, default: `off`
+`-s` | Show time difference (sec) | *Optional*, default: `off`
 `-a` | ASCII output format | Output ASCII printable characters + `\x00` style escaped bytes for non-printables
 `-m` | MIDI output format | Interpret and display received bytes as MIDI packets
 `-h` | Show command help | Show this list without opening a connection

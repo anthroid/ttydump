@@ -115,7 +115,8 @@ typedef struct {
 
 //	Command line options
 typedef struct {
-	uint8_t opt_p, opt_o, opt_w, opt_s, opt_c, opt_d, opt_z, opt_t, opt_f, opt_a, opt_m, opt_b;
+	uint8_t opt_p, opt_o, opt_w, opt_x, opt_c, opt_d, opt_z,
+			opt_t, opt_n, opt_s, opt_a, opt_m, opt_h, opt_b;
 	char *val_p, *val_o;
 	uint8_t val_w;
 	uint32_t val_b;
@@ -124,16 +125,17 @@ typedef struct {
 void print_usage(void) {
 	printf(
 		"Usage:\n"
-		"-p  Device path           (required, example: /dev/cu.usbserial*)\n"
-		"-b  Baud rate             (optional, default: %d)\n"
-		"-o  Output filename       (optional, binary output file path)\n"
-		"-w  Column width          (optional, %d-%d, default: %d bytes)\n"
-		"-s  Single line output    (optional, default: off)\n"
-		"-c  Color output          (optional, default: on)\n"
-		"-d  Decimal output        (optional, default: off)\n"
-		"-z  Zero prefix output    (optional, default: off)\n"
-		"-t  Show timestamp        (optional, default: off)\n"
-		"-f  Show time difference  (optional, default: off)\n"
+		"-p  Device path            (required, example: /dev/cu.usbserial*)\n"
+		"-b  Baud rate              (optional, default: %d)\n"
+		"-o  Output filename        (optional, binary output file path)\n"
+		"-w  Column width           (optional, %d-%d, default: %d bytes)\n"
+		"-x  Single line output     (optional, default: off)\n"
+		"-c  Color output           (optional, default: on)\n"
+		"-d  Decimal output         (optional, default: off)\n"
+		"-z  Zero prefix output     (optional, default: off)\n"
+		"-t  Show timestamp         (optional, default: off)\n"
+		"-n  Show time delta (ns)   (optional, default: off)\n"
+		"-s  Show time delta (sec)  (optional, default: off)\n"
 		"-a  ASCII output format\n"
 		"-m  MIDI output format\n"
 		"-h  Show command help\n",
@@ -151,31 +153,33 @@ void print_options(cmd_options_t *opt) {
 		"-b: %d, %d\n"
 		"-o: %d, %s\n"
 		"-w: %d, %d\n"
-		"-s: %d\n"
+		"-x: %d\n"
 		"-c: %d\n"
 		"-d: %d\n"
 		"-z: %d\n"
 		"-t: %d\n"
-		"-f: %d\n"
+		"-n: %d\n"
+		"-s: %d\n"
 		"-a: %d\n"
 		"-m: %d\n",
 		opt->opt_p, (opt->opt_p) ? opt->val_p : "(null)",
 		opt->opt_b, opt->val_b,
 		opt->opt_o, (opt->opt_o) ? opt->val_o : "(null)",
 		opt->opt_w, opt->val_w,
-		opt->opt_s,
+		opt->opt_x,
 		opt->opt_c,
 		opt->opt_d,
 		opt->opt_z,
 		opt->opt_t,
-		opt->opt_f,
+		opt->opt_n,
+		opt->opt_s,
 		opt->opt_a,
 		opt->opt_m
 	);
 }
 
 void print_timestamp(app_context_t *app, cmd_options_t *opt) {
-	//	Read the current system time
+	//	Read thx current system time
 	struct timespec ts, td;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	//	Print the current timestamp
@@ -183,13 +187,17 @@ void print_timestamp(app_context_t *app, cmd_options_t *opt) {
 		fprintf(stderr, "%ld: ", ts.tv_sec * NANOSECONDS_PER_SECOND + ts.tv_nsec);
 	}
 	//	Print the time in seconds difference since the last timestamp
-	if (opt->opt_f) {
+	if (opt->opt_n || opt->opt_s) {
 		if (app->ts.tv_sec == 0 && app->ts.tv_nsec == 0) {
 			app->ts.tv_sec = ts.tv_sec;
 			app->ts.tv_nsec = ts.tv_nsec;
 		}
 		timespec_sub(&app->ts, &ts, &td);
-		fprintf(stderr, "%.6f: ", timespec_dec(&td));
+		if (opt->opt_n) {
+			fprintf(stderr, "+%012ld: ", td.tv_sec * NANOSECONDS_PER_SECOND + td.tv_nsec);
+		} else if (opt->opt_s) {
+			fprintf(stderr, "%.6f: ", timespec_dec(&td));
+		}
 	}
 	//	Store the current timestamp back to the application context
 	app->ts.tv_sec = ts.tv_sec;
@@ -200,13 +208,13 @@ void print_byte_midi(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	//	Determine if this is a status byte
 	if (*p & 0x80) {
 		//	If so, start a new line or clear output
-		if (opt->opt_s) {
+		if (opt->opt_x) {
 			fprintf(stderr, ESC_CLEAR_OUTPUT);
 		} else {
 			fprintf(stderr, "\n");
 		}
-		//	Print a timestamp and/or time difference if either option is enabled
-		if (opt->opt_t || opt->opt_f) {
+		//	Print a timestamp and/or time difference if option is selected
+		if (opt->opt_t || opt->opt_n || opt->opt_s) {
 			print_timestamp(app, opt);
 		}
 	}
@@ -268,12 +276,12 @@ void print_byte_ascii(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	static uint8_t byte_count = 0;
 	
 	//	Clear screen after newline if single line mode is enabled
-	if (opt->opt_s && last_char == '\n') {
+	if (opt->opt_x && last_char == '\n') {
 		fprintf(stderr, ESC_CLEAR_OUTPUT);
 	}
 	
 	//	Print a timestamp and/or time difference if either option is enabled
-	if ((opt->opt_t || opt->opt_f) && (last_char == '\n' || last_char == 0)) {
+	if ((opt->opt_t || opt->opt_n || opt->opt_s) && (last_char == '\n' || last_char == 0)) {
 		print_timestamp(app, opt);
 	}
 	
@@ -281,13 +289,13 @@ void print_byte_ascii(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	if ((isprint(*p) || iscntrl(*p)) && *p != '\\') {
 		//	If last character was non-printable, start a new line or clear the screen
 		if ((!isprint(last_char) && !iscntrl(last_char)) || last_char == '\\') {
-			if (opt->opt_s) {
+			if (opt->opt_x) {
 				fprintf(stderr, ESC_CLEAR_OUTPUT);
 			} else {
 				fprintf(stderr, "\n");
 			}
-			//	Print a timestamp and/or time difference if either option is enabled
-			if (opt->opt_t || opt->opt_f) {
+			//	Print a timestamp and/or time difference if option is selected
+			if (opt->opt_t || opt->opt_n || opt->opt_s) {
 				print_timestamp(app, opt);
 			}
 		}
@@ -298,13 +306,13 @@ void print_byte_ascii(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	} else {
 		//	Print newline or clear screen at the start of a non-printable character sequence
 		if (byte_count == 0) {
-			if (opt->opt_s) {
+			if (opt->opt_x) {
 				fprintf(stderr, ESC_CLEAR_OUTPUT);
 			} else {
 				fprintf(stderr, "\n");
 			}
-			//	Print a timestamp and/or time difference if either option is enabled
-			if (opt->opt_t || opt->opt_f) {
+			//	Print a timestamp and/or time difference if option is selected
+			if (opt->opt_t || opt->opt_n || opt->opt_s) {
 				print_timestamp(app, opt);
 			}
 		}
@@ -346,13 +354,13 @@ void print_byte_raw(uint8_t *p, app_context_t *app, cmd_options_t *opt) {
 	//	Determine if this is a new line
 	if (byte_count == 0) {
 		//	If so, start a new line or clear output
-		if (opt->opt_s) {
+		if (opt->opt_x) {
 			fprintf(stderr, ESC_CLEAR_OUTPUT);
 		} else {
 			fprintf(stderr, "\n");
 		}
-		//	Print a timestamp and/or time difference if either option is enabled
-		if (opt->opt_t || opt->opt_f) {
+		//	Print a timestamp and/or time difference if option is selected
+		if (opt->opt_t || opt->opt_n || opt->opt_s) {
 			print_timestamp(app, opt);
 		}
 	}
@@ -399,10 +407,10 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 	memset((void*)opt, 0, sizeof(cmd_options_t));
 	
 	//	Parse command line options
-	while ((i = getopt(argc, argv, "scdztfamhp:b:o:w:")) != -1) {
+	while ((i = getopt(argc, argv, "xcdztnsamhp:b:o:w:")) != -1) {
 		switch (i) {
-			case 's':
-				opt->opt_s = 1;
+			case 'x':
+				opt->opt_x = 1;
 				break;
 			case 'c':
 				opt->opt_c = 1;
@@ -416,8 +424,11 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 			case 't':
 				opt->opt_t = 1;
 				break;
-			case 'f':
-				opt->opt_f = 1;
+			case 'n':
+				opt->opt_n = 1;
+				break;
+			case 's':
+				opt->opt_s = 1;
 				break;
 			case 'a':
 				opt->opt_a = 1;
@@ -516,7 +527,8 @@ int config_opt(int argc, char **argv, app_context_t *app, cmd_options_t *opt) {
 	}
 	
 	//	Set default output format if invoked without any display options
-	if ((opt->opt_s | opt->opt_c | opt->opt_d | opt->opt_z | opt->opt_a | opt->opt_m) == 0) {
+	if (opt->opt_x | opt->opt_c | opt->opt_d | opt->opt_z | opt->opt_t |
+		opt->opt_n | opt->opt_s | opt->opt_a | opt->opt_m == 0) {
 		opt->opt_c = 1;
 	}
 	
