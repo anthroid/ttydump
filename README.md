@@ -4,10 +4,6 @@ Display bytes read from a specified serial port in various output formats.
 Kind of like `hexdump`, but for your serial port.
 
 ![Screenshot](https://raw.githubusercontent.com/anthroid/ttydump/master/images/ttydump-screenshot.png)
-
-* Useful for microcontroller UART communication and debugging.
-* MIDI protocol-aware.
-
 ## Usage
 
 Argument | Option | Comment
@@ -41,10 +37,10 @@ The program is entirely contained within a single source (`src/ttydump.c`), so c
 $ gcc ./src/ttydump.c -o ./bin/ttydump
 ```
 Or use the makefile:
-To build: `make`
-To clean the build directory: `make clean`
-To see which commands will be run by `make`: `make -n all`
-To print the makefile variables: `make print`
+* To build: `make`
+* To clean the build directory: `make clean`
+* To see which commands will be run by `make`: `make -n all`
+* To print the makefile variables: `make print`
 
 ## Installing
 
@@ -83,9 +79,8 @@ $ ttydump -p /dev/cu.usbserial-DEADA55 -o ~/test/file.out
 
 ## Notes
 
-* I have not tested extensively on any platforms other than macOS 10.12, macOS 10.14, and Ubuntu 18.04. Nonetheless, no special or OS-specific functionality is used (to my knowledge, other than the required platform-specific baud rate defines), and there are no dependencies outside of the standard C library, so it should hopefully compile and run.
+* I have not tested extensively on any platforms other than macOS 10.12 - 10.14, Ubuntu 18.04 - 20.04, and Arch Linux. Nonetheless, no special or OS-specific functionality is used (to my knowledge, other than the required platform-specific baud rate defines), and there are no dependencies outside of the standard C library, so it should hopefully compile and run.
 
 * The program uses an advisory lock mechanism, `flock()`, on the opened serial device, but unless this is also implemented in other utilities you are using (for example, `screen`), multiple processes may be able to open the device simultaneously, which can cause strange behavior. This is not unique to this utility.
 
 * On Linux (and possibly others), make sure your user is a member of the group that owns the serial tty device (this is the `dialout` group by default on Ubuntu for example). You can add yourself to it with the following command: `sudo gpasswd --add ${USER} dialout`
-
