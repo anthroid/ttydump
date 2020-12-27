@@ -2,8 +2,9 @@
 
 Display bytes read from a specified serial port in various output formats.
 Kind of like `hexdump`, but for your serial port.
-Useful for microcontroller UART communication and debugging.
-MIDI protocol-aware.
+
+* Useful for microcontroller UART communication and debugging.
+* MIDI protocol-aware.
 
 ## Usage
 
