@@ -2,6 +2,8 @@
 
 Display bytes read from a specified serial port in various output formats.
 Kind of like `hexdump`, but for your serial port.
+Useful for microcontroller UART communication and debugging.
+MIDI protocol-aware.
 
 ## Usage
 
@@ -71,8 +73,6 @@ $ ttydump -p /dev/cu.usbserial-DEADA55 -o ~/test/file.out
 ## Notes
 
 * I have not tested extensively on any platforms other than macOS 10.12, macOS 10.14, and Ubuntu 18.04. Nonetheless, no special or OS-specific functionality is used (to my knowledge, other than the required platform-specific baud rate defines), and there are no dependencies outside of the standard C library, so it should hopefully compile and run.
-
-* If you find a problem on *one of the above platforms*, please report it.
 
 * The program uses an advisory lock mechanism, `flock()`, on the opened serial device, but unless this is also implemented in other utilities you are using (for example, `screen`), multiple processes may be able to open the device simultaneously, which can cause strange behavior. This is not unique to this utility.
 
