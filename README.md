@@ -37,6 +37,11 @@ The program is entirely contained within a single source (`src/ttydump.c`), so c
 ```
 $ gcc ./src/ttydump.c -o ./bin/ttydump
 ```
+Or use the makefile:
+To build: `make`
+To clean the build directory: `make clean`
+To see which commands will be run by `make`: `make -n all`
+To print the makefile variables: `make print`
 
 ## Installing
 
@@ -44,6 +49,9 @@ Copy or symlink the executable to a location in your `$PATH`, for example:
 
 ```
 $ cp ./bin/ttydump /usr/local/bin/
+```
+Or:
+```
 $ ln -s ./bin/ttydump /usr/local/bin/ttydump
 ```
 
