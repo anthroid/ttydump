@@ -3,6 +3,8 @@
 Display bytes read from a specified serial port in various output formats.
 Kind of like `hexdump`, but for your serial port.
 
+![Screenshot](https://raw.githubusercontent.com/anthroid/ttydump/master/images/ttydump-screenshot.png)
+
 * Useful for microcontroller UART communication and debugging.
 * MIDI protocol-aware.
 
